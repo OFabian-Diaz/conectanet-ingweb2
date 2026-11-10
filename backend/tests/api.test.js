@@ -176,4 +176,6 @@ test('Swagger expone la especificación OpenAPI 3.0', async () => {
   const res = await request(app).get('/api/docs.json').expect(200);
   assert.match(res.body.openapi, /^3\.0/);
   assert.ok(res.body.paths['/pagos/historial']);
+  // El primer servidor es relativo: "Try it out" funciona detrás de Nginx sin exponer el puerto 4000
+  assert.equal(res.body.servers[0].url, '/api');
 });

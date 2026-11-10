@@ -10,8 +10,10 @@ info:
     **Autenticación:** las rutas protegidas requieren la cabecera
     `Authorization: Bearer <token>` con el JWT que devuelven `/auth/registro` o `/auth/login`.
 servers:
+  - url: /api
+    description: 'Mismo origen, a través de Nginx (Docker, Kubernetes y Azure)'
   - url: http://localhost:4000/api
-    description: Desarrollo local
+    description: Backend directo (desarrollo con npm start)
 tags:
   - name: Autenticación
   - name: Planes
