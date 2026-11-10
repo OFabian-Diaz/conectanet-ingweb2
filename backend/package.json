@@ -25,10 +25,8 @@
     "swagger-ui-express": "^5.0.1",
     "yaml": "^2.6.1"
   },
-  "optionalDependencies": {
-    "sqlite3": "^5.1.7"
-  },
   "devDependencies": {
+    "sqlite3": "^6.0.1",
     "supertest": "^7.0.0"
   }
 }
