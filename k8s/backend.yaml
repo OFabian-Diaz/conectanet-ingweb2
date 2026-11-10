@@ -37,7 +37,11 @@ spec:
               containerPort: 4000
           envFrom:
             - configMapRef: { name: conectanet-config }
-            - secretRef: { name: conectanet-secretos } # DB_PASSWORD y JWT_SECRET
+            - secretRef: { name: conectanet-secretos } # DB_PASSWORD, JWT_SECRET y REDIS_PASSWORD
+          env:
+            # $(REDIS_PASSWORD) se expande con el valor del Secret cargado en envFrom
+            - name: REDIS_URL
+              value: redis://:$(REDIS_PASSWORD)@redis:6379
           readinessProbe:
             httpGet: { path: /api/salud/lista, port: http }
             initialDelaySeconds: 5

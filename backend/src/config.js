@@ -35,4 +35,7 @@ module.exports = {
   // sería común para todos. Con 0 (por defecto, sin proxy) se ignora X-Forwarded-For,
   // porque un cliente podría falsificarlo para saltarse el límite.
   trustProxy: Number(process.env.TRUST_PROXY) || 0,
+  // Redis para compartir el límite de intentos entre réplicas. Sin REDIS_URL se usa memoria
+  // (válido con una sola instancia: desarrollo y pruebas).
+  redisUrl: process.env.REDIS_URL || null,
 };

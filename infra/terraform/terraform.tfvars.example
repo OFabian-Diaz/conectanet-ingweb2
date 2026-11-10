@@ -3,3 +3,6 @@
 ubicacion       = "eastus2"
 imagen_backend  = "ghcr.io/<usuario-github>/conectanet-backend:main"
 imagen_frontend = "ghcr.io/<usuario-github>/conectanet-frontend:main"
+
+# Redis gestionado (~USD 16/mes). En false se ahorra el costo y el backend usa 1 sola réplica.
+redis_habilitado = true
