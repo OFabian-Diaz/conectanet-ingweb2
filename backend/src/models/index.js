@@ -9,10 +9,20 @@ function crearConexion() {
       logging: false,
     });
   }
-  if (!config.db.url) {
-    throw new Error('Define DATABASE_URL para conectarse a PostgreSQL (o usa DB_DIALECT=sqlite)');
+  const opciones = {
+    dialect: 'postgres',
+    logging: false,
+    dialectOptions: config.db.ssl ? { ssl: { require: true, rejectUnauthorized: false } } : {},
+  };
+  if (config.db.url) return new Sequelize(config.db.url, opciones);
+  if (config.db.host) {
+    return new Sequelize(config.db.nombre, config.db.usuario, config.db.contrasena, {
+      ...opciones,
+      host: config.db.host,
+      port: config.db.puerto,
+    });
   }
-  return new Sequelize(config.db.url, { dialect: 'postgres', logging: false });
+  throw new Error('Define DATABASE_URL o DB_HOST/DB_PASSWORD para PostgreSQL (o usa DB_DIALECT=sqlite)');
 }
 
 const sequelize = crearConexion();
