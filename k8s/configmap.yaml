@@ -14,4 +14,5 @@ data:
   DB_USER: conectanet
   DB_SYNC: "false" # las tablas las crea el Job "conectanet-migracion"
   JWT_EXPIRES_IN: 2h
+  TRUST_PROXY: "1" # un proxy (Nginx del frontend); kube-proxy no agrega X-Forwarded-For
   CORS_ORIGIN: http://localhost:8080

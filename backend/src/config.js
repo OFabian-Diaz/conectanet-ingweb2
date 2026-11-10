@@ -30,4 +30,9 @@ module.exports = {
     expiraEn: process.env.JWT_EXPIRES_IN || '2h',
   },
   corsOrigen: (process.env.CORS_ORIGIN || 'http://localhost:5173').split(','),
+  // Cantidad de proxies de confianza delante de la API (Nginx = 1). Sin esto, detrás de
+  // Nginx todos los usuarios comparten la IP del proxy y el límite de intentos de login
+  // sería común para todos. Con 0 (por defecto, sin proxy) se ignora X-Forwarded-For,
+  // porque un cliente podría falsificarlo para saltarse el límite.
+  trustProxy: Number(process.env.TRUST_PROXY) || 0,
 };
