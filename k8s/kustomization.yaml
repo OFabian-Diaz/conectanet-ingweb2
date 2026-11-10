@@ -1,0 +1,15 @@
+# Aplica todos los manifiestos con: kubectl apply -k k8s/
+# (el Secret se crea antes, a mano: ver secret.example.yaml)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: conectanet
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - postgres.yaml
+  - migracion-job.yaml
+  - backend.yaml
+  - frontend.yaml
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: conectanet

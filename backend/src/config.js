@@ -20,6 +20,8 @@ module.exports = {
     usuario: process.env.DB_USER || 'conectanet',
     contrasena: process.env.DB_PASSWORD,
     ssl: process.env.DB_SSL === 'true', // necesario en bases gestionadas en la nube
+    // Con varias réplicas (Kubernetes) las tablas las crea un Job una sola vez: DB_SYNC=false.
+    sync: process.env.DB_SYNC !== 'false',
     storage: process.env.DB_STORAGE || './conectanet.sqlite',
   },
   jwt: {

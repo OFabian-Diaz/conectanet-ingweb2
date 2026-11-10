@@ -1,0 +1,30 @@
+# Job de una sola ejecución: crea las tablas y siembra los planes.
+# Evita que varias réplicas del backend lo hagan a la vez al arrancar.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: conectanet-migracion
+  namespace: conectanet
+spec:
+  backoffLimit: 6 # reintenta mientras PostgreSQL termina de arrancar
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: conectanet-migracion
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: migracion
+          image: conectanet-backend:latest
+          imagePullPolicy: IfNotPresent
+          command: ["node", "src/seed.js"]
+          envFrom:
+            - configMapRef: { name: conectanet-config }
+            - secretRef: { name: conectanet-secretos }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 300m, memory: 192Mi }

@@ -29,7 +29,17 @@ app.use(
 );
 
 // --- Rutas ---
+// Liveness: el proceso responde (no toca la BD para no reiniciar pods si la BD cae).
 app.get('/api/salud', (req, res) => res.json({ estado: 'ok' }));
+// Readiness: la BD responde y las tablas existen; hasta entonces no se envía tráfico al pod.
+app.get('/api/salud/lista', async (req, res) => {
+  try {
+    await require('./models').Plan.count();
+    res.json({ estado: 'lista' });
+  } catch {
+    res.status(503).json({ estado: 'no lista' });
+  }
+});
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/planes', require('./routes/planes'));
 app.use('/api/usuarios', require('./routes/usuarios').router);
