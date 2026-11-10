@@ -18,7 +18,7 @@
     {
       "id": 1,
       "type": "stat",
-      "title": "Registros en el periodo",
+      "title": "Registros (desde el arranque)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -36,7 +36,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(conectanet_registros_total[$__range]))",
+          "expr": "sum(conectanet_registros_total)",
           "instant": true
         }
       ],
@@ -72,12 +72,12 @@
         "textMode": "value",
         "justifyMode": "center"
       },
-      "description": "Usuarios nuevos en el rango de tiempo seleccionado"
+      "description": "Valor exacto del contador desde que arrancó la API (se reinicia con el contenedor). El total histórico está en la base de datos."
     },
     {
       "id": 2,
       "type": "stat",
-      "title": "Pagos aprobados en el periodo",
+      "title": "Pagos aprobados (desde el arranque)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -95,7 +95,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(conectanet_pagos_total[$__range]))",
+          "expr": "sum(conectanet_pagos_total)",
           "instant": true
         }
       ],
@@ -131,12 +131,12 @@
         "textMode": "value",
         "justifyMode": "center"
       },
-      "description": ""
+      "description": "Valor exacto del contador desde que arrancó la API"
     },
     {
       "id": 3,
       "type": "stat",
-      "title": "Recaudo en el periodo",
+      "title": "Recaudo (desde el arranque)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -154,7 +154,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(conectanet_recaudo_pesos_total[$__range]))",
+          "expr": "sum(conectanet_recaudo_pesos_total)",
           "instant": true
         }
       ],
@@ -190,7 +190,7 @@
         "textMode": "value",
         "justifyMode": "center"
       },
-      "description": ""
+      "description": "Valor exacto: increase() extrapola y no sirve para mostrar dinero"
     },
     {
       "id": 4,
