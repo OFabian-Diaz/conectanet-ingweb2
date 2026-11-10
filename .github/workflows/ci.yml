@@ -112,6 +112,7 @@ jobs:
           POSTGRES_PASSWORD: valor-solo-para-validar
           JWT_SECRET: valor-solo-para-validar
           GRAFANA_ADMIN_PASSWORD: valor-solo-para-validar
+          REDIS_PASSWORD: valor-solo-para-validar
         run: docker compose config --quiet
 
       - uses: docker/setup-buildx-action@v4
