@@ -5,6 +5,7 @@ const { body } = require('express-validator');
 const { sequelize, Usuario, Plan, Suscripcion } = require('../models');
 const { validar, SIN_HTML } = require('../middleware/validar');
 const { firmarToken } = require('../middleware/auth');
+const { negocio } = require('../metricas');
 
 const router = express.Router();
 const RONDAS_BCRYPT = 12;
@@ -62,6 +63,7 @@ router.post(
         return nuevo;
       });
 
+      negocio.registros.inc();
       return res.status(201).json({
         token: firmarToken(usuario),
         usuario: { id: usuario.id, nombre: usuario.nombre, correo: usuario.correo },
@@ -87,6 +89,7 @@ router.post(
 
       // Mismo mensaje si el correo no existe o la clave es incorrecta: no revela qué cuentas existen.
       const valido = usuario && (await bcrypt.compare(contrasena, usuario.contrasena));
+      negocio.logins.inc({ resultado: valido ? 'exitoso' : 'fallido' });
       if (!valido) return res.status(401).json({ error: 'Correo o contraseña incorrectos' });
 
       return res.json({

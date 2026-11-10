@@ -1,0 +1,36 @@
+groups:
+  - name: conectanet
+    rules:
+      - alert: BackendCaido
+        expr: up{job="conectanet-backend"} == 0
+        for: 1m
+        labels:
+          severidad: critica
+        annotations:
+          resumen: "La API de ConectaNet no responde"
+          descripcion: "Prometheus no puede leer /metrics del backend desde hace más de 1 minuto."
+
+      - alert: TasaAltaDeErrores5xx
+        expr: |
+          sum(rate(http_requests_total{estado=~"5.."}[5m]))
+            / clamp_min(sum(rate(http_requests_total[5m])), 0.001) > 0.05
+        for: 5m
+        labels:
+          severidad: alta
+        annotations:
+          resumen: "Más del 5 % de las peticiones terminan en error 5xx"
+
+      - alert: LatenciaAltaP95
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) > 1
+        for: 10m
+        labels:
+          severidad: media
+        annotations:
+          resumen: "El percentil 95 de latencia supera 1 segundo"
+
+      - alert: PosibleFuerzaBrutaLogin
+        expr: sum(increase(conectanet_logins_total{resultado="fallido"}[5m])) > 30
+        labels:
+          severidad: alta
+        annotations:
+          resumen: "Más de 30 inicios de sesión fallidos en 5 minutos (OWASP A07)"
