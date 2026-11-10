@@ -15,6 +15,12 @@ app.use(helmet()); // cabeceras: CSP, X-Content-Type-Options, frameguard, HSTS..
 app.use(cors({ origin: config.corsOrigen, methods: ['GET', 'POST', 'PUT'], allowedHeaders: ['Content-Type', 'Authorization'] }));
 app.use(express.json({ limit: '10kb' })); // limita el tamaño del cuerpo
 
+// --- Observabilidad (Prometheus) ---
+// /metrics está fuera de /api: Nginx no lo publica; solo Prometheus lo consulta por la red interna.
+const { medirPeticiones, endpointMetricas } = require('./metricas');
+app.use(medirPeticiones);
+app.get('/metrics', endpointMetricas);
+
 // --- Documentación Swagger (OpenAPI 3.0) ---
 const especificacion = YAML.parse(fs.readFileSync(path.join(__dirname, 'docs', 'openapi.yaml'), 'utf8'));
 app.get('/api/docs.json', (req, res) => res.json(especificacion));

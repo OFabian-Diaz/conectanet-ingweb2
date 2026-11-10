@@ -1,9 +1,9 @@
-# ConectaNet: frontend (Nginx) + backend (Node.js) + PostgreSQL
+# ConectaNet: frontend (Nginx) + backend (Node.js) + PostgreSQL + Prometheus + Grafana
 #
 # Uso:
-#   cp .env.example .env     # y reemplazar los secretos (ver README)
+#   node scripts/generar-env.js   # crea .env con secretos aleatorios
 #   docker compose up -d --build
-#   Abrir http://localhost:8080
+#   App: http://localhost:8080 · Grafana: http://localhost:3000 · Prometheus: http://localhost:9090
 #
 # Los secretos se leen del archivo .env (no versionado). Si falta alguno,
 # Compose se detiene con un error en lugar de arrancar con valores inseguros.
@@ -46,8 +46,9 @@ services:
     depends_on:
       db:
         condition: service_healthy # espera a que PostgreSQL acepte conexiones
-    networks: [frontend, backend]
+    networks: [frontend, backend, monitoreo]
     # Sin "ports": la API solo es accesible a través del frontend (Nginx).
+    # /metrics solo lo alcanza Prometheus por la red "monitoreo".
 
   frontend:
     build: ./frontend
@@ -60,10 +61,47 @@ services:
         condition: service_healthy
     networks: [frontend]
 
+  # ---------------- Monitoreo ----------------
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./monitoreo/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoreo/prometheus/alertas.yml:/etc/prometheus/alertas.yml:ro
+      - prometheusdata:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090" # solo desde este equipo
+    depends_on: [backend]
+    networks: [monitoreo]
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Define GRAFANA_ADMIN_PASSWORD en .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/conectanet.json
+    volumes:
+      - ./monitoreo/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoreo/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on: [prometheus]
+    networks: [monitoreo]
+
 networks:
   frontend:
   backend:
     internal: true # la base de datos no tiene salida a internet
+  monitoreo:
 
 volumes:
   pgdata:
+  prometheusdata:
+  grafanadata:

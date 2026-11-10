@@ -4,6 +4,7 @@ const { sequelize, Pago, Suscripcion } = require('../models');
 const { requiereAuth } = require('../middleware/auth');
 const { validar } = require('../middleware/validar');
 const { suscripcionVigente } = require('./usuarios');
+const { negocio } = require('../metricas');
 
 const router = express.Router();
 router.use(requiereAuth); // todas las rutas de pagos son protegidas
@@ -53,6 +54,8 @@ router.post(
         return nuevo;
       });
 
+      negocio.pagos.inc({ metodo: pago.metodo });
+      negocio.recaudo.inc(Number(pago.monto));
       return res.status(201).json({
         id: pago.id,
         monto: pago.monto,

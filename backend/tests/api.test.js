@@ -151,6 +151,27 @@ test('cabeceras de seguridad de helmet presentes y sin x-powered-by', async () =
   assert.ok(res.headers['content-security-policy']);
 });
 
+test('GET /metrics expone métricas Prometheus de Node, HTTP y negocio', async () => {
+  const res = await request(app).get('/metrics').expect(200);
+  assert.match(res.headers['content-type'], /text\/plain/);
+  const m = res.text;
+  assert.match(m, /process_cpu_user_seconds_total/); // métricas por defecto
+  // Ruta plantilla, no la URL real; y 401 del middleware etiquetado con la ruta base
+  assert.match(m, /http_requests_total\{[^}]*metodo="GET",ruta="\/api\/pagos\/historial",estado="200"/);
+  assert.match(m, /http_requests_total\{[^}]*ruta="\/api\/pagos",estado="401"/);
+  assert.match(m, /http_request_duration_seconds_bucket\{/);
+  assert.match(m, /conectanet_registros_total\{[^}]*\} 3/); // Ana, Luis y Sara
+  // 1 fallido: el intento de inyección SQL lo frena la validación (400) antes de autenticar
+  assert.match(m, /conectanet_logins_total\{[^}]*resultado="fallido"[^}]*\} 1/);
+  assert.match(m, /conectanet_logins_total\{[^}]*resultado="exitoso"[^}]*\} 1/);
+  assert.match(m, /conectanet_pagos_total\{[^}]*metodo="pse"[^}]*\} 1/);
+  assert.match(m, /conectanet_recaudo_pesos_total\{[^}]*\} 130000/); // 75000 + 55000
+});
+
+test('/metrics no queda expuesto bajo /api (Nginx solo publica /api)', async () => {
+  await request(app).get('/api/metrics').expect(404);
+});
+
 test('Swagger expone la especificación OpenAPI 3.0', async () => {
   const res = await request(app).get('/api/docs.json').expect(200);
   assert.match(res.body.openapi, /^3\.0/);
