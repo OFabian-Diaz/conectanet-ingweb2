@@ -3,9 +3,10 @@
 # En cada push y pull request:
 #   1. backend  -> instala dependencias y corre las pruebas (node --test)
 #   2. frontend -> instala dependencias y compila React
-#   3. docker   -> valida docker-compose y construye las imágenes de backend y frontend
+#   3. infraestructura -> terraform fmt/validate y kubeconform sobre k8s/
+#   4. docker   -> valida docker-compose y construye las imágenes de backend y frontend
 # Solo en push a main o develop (entrega continua):
-#   4. publica las imágenes en GitHub Container Registry (ghcr.io)
+#   5. publica las imágenes en GitHub Container Registry (ghcr.io)
 
 name: CI/CD
 
@@ -58,10 +59,31 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  infraestructura:
+    name: Terraform y Kubernetes - validación
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+      - name: Terraform fmt
+        working-directory: infra/terraform
+        run: terraform fmt -check -recursive
+      - name: Terraform validate (sin credenciales ni estado remoto)
+        working-directory: infra/terraform
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+      - name: Validar manifiestos de Kubernetes contra los esquemas oficiales
+        run: |
+          docker run --rm -v "$PWD/k8s:/k8s:ro" ghcr.io/yannh/kubeconform:v0.6.7 \
+            -strict -summary -ignore-filename-pattern 'kind-config|kustomization' /k8s
+
   docker:
     name: Imágenes Docker
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
+    needs: [backend, frontend, infraestructura]
     permissions:
       contents: read
       packages: write # necesario solo para publicar en ghcr.io
