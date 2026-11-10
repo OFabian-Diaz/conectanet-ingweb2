@@ -1,0 +1,283 @@
+openapi: 3.0.3
+info:
+  title: ConectaNet API
+  version: 1.0.0
+  description: |
+    API REST de ConectaNet, plataforma para una empresa local de internet y televisión.
+    Permite consultar planes, registrarse, iniciar sesión, ver el plan contratado y realizar
+    el pago mensual (simulado).
+
+    **Autenticación:** las rutas protegidas requieren la cabecera
+    `Authorization: Bearer <token>` con el JWT que devuelven `/auth/registro` o `/auth/login`.
+servers:
+  - url: http://localhost:4000/api
+    description: Desarrollo local
+tags:
+  - name: Autenticación
+  - name: Planes
+  - name: Usuarios
+  - name: Pagos
+
+paths:
+  /auth/registro:
+    post:
+      tags: [Autenticación]
+      summary: Registrar un nuevo usuario
+      description: Crea la cuenta (contraseña cifrada con bcrypt). Si se envía `planId`, crea también una suscripción en estado `pendiente`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegistroEntrada' }
+      responses:
+        '201':
+          description: Usuario creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespuestaAuth' }
+        '400': { $ref: '#/components/responses/EntradaInvalida' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: El correo ya está registrado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/login:
+    post:
+      tags: [Autenticación]
+      summary: Iniciar sesión y obtener el JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginEntrada' }
+      responses:
+        '200':
+          description: Credenciales válidas
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RespuestaAuth' }
+        '400': { $ref: '#/components/responses/EntradaInvalida' }
+        '401':
+          description: Correo o contraseña incorrectos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: Demasiados intentos (límite de 20 cada 15 minutos)
+
+  /planes:
+    get:
+      tags: [Planes]
+      summary: Consultar los planes disponibles (público)
+      responses:
+        '200':
+          description: Lista de planes activos ordenada por precio
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Plan' }
+
+  /usuarios/mi-cuenta:
+    get:
+      tags: [Usuarios]
+      summary: Perfil y plan del usuario autenticado
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Datos de la cuenta
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MiCuenta' }
+        '401': { $ref: '#/components/responses/NoAutorizado' }
+
+  /usuarios/mi-cuenta/plan:
+    put:
+      tags: [Usuarios]
+      summary: Contratar o cambiar de plan
+      description: Cancela la suscripción vigente (si existe) y crea una nueva en estado `pendiente` hasta el primer pago.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [planId]
+              properties:
+                planId: { type: integer, example: 2 }
+      responses:
+        '201':
+          description: Nueva suscripción creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Suscripcion' }
+        '400': { $ref: '#/components/responses/EntradaInvalida' }
+        '401': { $ref: '#/components/responses/NoAutorizado' }
+        '404': { $ref: '#/components/responses/NoEncontrado' }
+        '409':
+          description: Ya tiene contratado ese plan
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /pagos:
+    post:
+      tags: [Pagos]
+      summary: Registrar el pago mensual (simulado)
+      description: |
+        El monto lo calcula el servidor con el precio del plan contratado (el cliente no lo envía).
+        Solo se permite un pago aprobado por mes. Al pagar, la suscripción pasa a `activa`.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [metodo]
+              properties:
+                metodo: { type: string, enum: [tarjeta, pse, efectivo], example: pse }
+      responses:
+        '201':
+          description: Pago aprobado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Pago' }
+        '400': { $ref: '#/components/responses/EntradaInvalida' }
+        '401': { $ref: '#/components/responses/NoAutorizado' }
+        '404':
+          description: El usuario no tiene plan contratado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: El mes actual ya está pagado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /pagos/historial:
+    get:
+      tags: [Pagos]
+      summary: Historial de pagos del usuario autenticado
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Pagos del más reciente al más antiguo
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Pago' }
+        '401': { $ref: '#/components/responses/NoAutorizado' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    EntradaInvalida:
+      description: Los datos enviados no cumplen las validaciones
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorValidacion' }
+    NoAutorizado:
+      description: Falta el token o es inválido/expirado
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NoEncontrado:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string, example: Token inválido o expirado }
+    ErrorValidacion:
+      type: object
+      properties:
+        error: { type: string, example: Datos de entrada inválidos }
+        detalles:
+          type: array
+          items:
+            type: object
+            properties:
+              campo: { type: string, example: correo }
+              mensaje: { type: string, example: Correo inválido }
+    RegistroEntrada:
+      type: object
+      required: [nombre, correo, contrasena]
+      properties:
+        nombre: { type: string, minLength: 2, maxLength: 100, example: Ana Pérez }
+        correo: { type: string, format: email, example: ana@correo.com }
+        contrasena: { type: string, minLength: 8, maxLength: 72, description: Debe tener letras y números, example: Clave1234 }
+        telefono: { type: string, example: '3001234567' }
+        direccion: { type: string, maxLength: 200, example: 'Calle 10 # 5-20' }
+        planId: { type: integer, nullable: true, example: 2 }
+    LoginEntrada:
+      type: object
+      required: [correo, contrasena]
+      properties:
+        correo: { type: string, format: email, example: ana@correo.com }
+        contrasena: { type: string, example: Clave1234 }
+    RespuestaAuth:
+      type: object
+      properties:
+        token: { type: string, example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9... }
+        usuario:
+          type: object
+          properties:
+            id: { type: integer, example: 1 }
+            nombre: { type: string, example: Ana Pérez }
+            correo: { type: string, example: ana@correo.com }
+    Plan:
+      type: object
+      properties:
+        id: { type: integer, example: 2 }
+        nombre: { type: string, example: Internet Hogar }
+        tipo: { type: string, enum: [internet, tv, combo] }
+        velocidad: { type: string, nullable: true, example: 300 Mbps }
+        precio: { type: string, description: Decimal en pesos colombianos, example: '75000.00' }
+        descripcion: { type: string }
+    Suscripcion:
+      type: object
+      properties:
+        id: { type: integer }
+        estado: { type: string, enum: [pendiente, activa, cancelada] }
+        fechaInicio: { type: string, format: date }
+        plan: { $ref: '#/components/schemas/Plan' }
+    MiCuenta:
+      type: object
+      properties:
+        usuario:
+          type: object
+          properties:
+            id: { type: integer }
+            nombre: { type: string }
+            correo: { type: string }
+            telefono: { type: string, nullable: true }
+            direccion: { type: string, nullable: true }
+            createdAt: { type: string, format: date-time }
+        suscripcion:
+          nullable: true
+          allOf: [{ $ref: '#/components/schemas/Suscripcion' }]
+    Pago:
+      type: object
+      properties:
+        id: { type: integer }
+        monto: { type: string, example: '75000.00' }
+        fecha: { type: string, format: date-time }
+        periodo: { type: string, example: 2026-11 }
+        metodo: { type: string, enum: [tarjeta, pse, efectivo] }
+        estado: { type: string, enum: [aprobado, rechazado] }
+        plan: { type: string, example: Internet Hogar }

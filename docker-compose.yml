@@ -1,0 +1,17 @@
+# Base de datos PostgreSQL para ConectaNet (opcional si ya tienes PostgreSQL instalado).
+# Uso: docker compose up -d   →   luego en backend/.env:
+#   DATABASE_URL=postgres://conectanet:conectanet_dev@localhost:5432/conectanet
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: conectanet
+      POSTGRES_USER: conectanet
+      POSTGRES_PASSWORD: conectanet_dev # solo para desarrollo local
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

@@ -1,0 +1,27 @@
+# Dependencias y builds
+node_modules/
+dist/
+coverage/
+
+# Secretos y datos locales (NUNCA se versionan)
+.env
+.env.*
+!.env.example
+*.sqlite
+secrets/
+
+# Terraform: estado y variables con secretos
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/*.tfvars
+!infra/terraform/*.tfvars.example
+infra/terraform/.terraform.lock.hcl.bak
+
+# Kubernetes: Secret real generado localmente
+k8s/secret.yaml
+
+# Herramientas locales
+.claude/
+.vscode/
+*.log

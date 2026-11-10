@@ -1,0 +1,199 @@
+{
+  "info": {
+    "name": "ConectaNet API",
+    "description": "Pruebas de los endpoints de ConectaNet. Ejecutar en orden con el Collection Runner. El login guarda el JWT en la variable {{token}} automáticamente.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000/api" },
+    { "key": "token", "value": "" },
+    { "key": "correo", "value": "" },
+    { "key": "planId", "value": "2" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "1. Planes",
+      "item": [
+        {
+          "name": "Listar planes (público)",
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/planes" },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('Devuelve un arreglo de planes', () => {",
+            "  const planes = pm.response.json();",
+            "  pm.expect(planes).to.be.an('array').that.is.not.empty;",
+            "  pm.expect(planes[0]).to.have.keys('id','nombre','tipo','velocidad','precio','descripcion');",
+            "  pm.collectionVariables.set('planId', planes[1].id);",
+            "});"
+          ] } }]
+        }
+      ]
+    },
+    {
+      "name": "2. Autenticación",
+      "item": [
+        {
+          "name": "Registro",
+          "event": [
+            { "listen": "prerequest", "script": { "exec": [
+              "pm.collectionVariables.set('correo', `prueba${Date.now()}@correo.com`);"
+            ] } },
+            { "listen": "test", "script": { "exec": [
+              "pm.test('201 Created', () => pm.response.to.have.status(201));",
+              "pm.test('Devuelve token y no expone la contraseña', () => {",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.token).to.be.a('string');",
+              "  pm.expect(body.usuario).to.not.have.property('contrasena');",
+              "});"
+            ] } }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/registro",
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Usuario Prueba\",\n  \"correo\": \"{{correo}}\",\n  \"contrasena\": \"Clave1234\",\n  \"telefono\": \"3001234567\",\n  \"direccion\": \"Calle 10 # 5-20\",\n  \"planId\": {{planId}}\n}" }
+          }
+        },
+        {
+          "name": "Registro duplicado (409)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('409 Conflict', () => pm.response.to.have.status(409));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/registro",
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"Usuario Prueba\",\n  \"correo\": \"{{correo}}\",\n  \"contrasena\": \"Clave1234\"\n}" }
+          }
+        },
+        {
+          "name": "Registro con datos inválidos / XSS (400)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+            "pm.test('Informa los campos inválidos', () => pm.expect(pm.response.json().detalles).to.be.an('array').that.is.not.empty);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/registro",
+            "body": { "mode": "raw", "raw": "{\n  \"nombre\": \"<script>alert(1)</script>\",\n  \"correo\": \"no-es-correo\",\n  \"contrasena\": \"123\"\n}" }
+          }
+        },
+        {
+          "name": "Login incorrecto (401)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"correo\": \"{{correo}}\",\n  \"contrasena\": \"ClaveMala99\"\n}" }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test('Devuelve un JWT', () => pm.expect(body.token.split('.')).to.have.lengthOf(3));",
+            "pm.collectionVariables.set('token', body.token);"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/auth/login",
+            "body": { "mode": "raw", "raw": "{\n  \"correo\": \"{{correo}}\",\n  \"contrasena\": \"Clave1234\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Usuarios",
+      "item": [
+        {
+          "name": "Mi cuenta sin token (401)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{baseUrl}}/usuarios/mi-cuenta" }
+        },
+        {
+          "name": "Mi cuenta",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "const body = pm.response.json();",
+            "pm.test('Incluye el perfil sin contraseña', () => pm.expect(body.usuario).to.not.have.property('contrasena'));",
+            "pm.test('Tiene suscripción con plan', () => pm.expect(body.suscripcion.plan).to.have.property('nombre'));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/usuarios/mi-cuenta" }
+        }
+      ]
+    },
+    {
+      "name": "4. Pagos",
+      "item": [
+        {
+          "name": "Pagar mensualidad",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('201 Created', () => pm.response.to.have.status(201));",
+            "const body = pm.response.json();",
+            "pm.test('Pago aprobado y suscripción activa', () => {",
+            "  pm.expect(body.estado).to.eql('aprobado');",
+            "  pm.expect(body.suscripcionEstado).to.eql('activa');",
+            "});",
+            "pm.test('El monto lo fija el servidor (se envió 1)', () => pm.expect(Number(body.monto)).to.be.above(1));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/pagos",
+            "body": { "mode": "raw", "raw": "{\n  \"metodo\": \"pse\",\n  \"monto\": 1\n}" }
+          }
+        },
+        {
+          "name": "Pagar dos veces el mismo mes (409)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('409 Conflict', () => pm.response.to.have.status(409));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/pagos",
+            "body": { "mode": "raw", "raw": "{\n  \"metodo\": \"tarjeta\"\n}" }
+          }
+        },
+        {
+          "name": "Historial de pagos",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('200 OK', () => pm.response.to.have.status(200));",
+            "pm.test('Contiene el pago realizado', () => pm.expect(pm.response.json()).to.have.lengthOf(1));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/pagos/historial" }
+        },
+        {
+          "name": "Pago sin token (401)",
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('401 Unauthorized', () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": "{{baseUrl}}/pagos",
+            "body": { "mode": "raw", "raw": "{\n  \"metodo\": \"pse\"\n}" }
+          }
+        }
+      ]
+    }
+  ]
+}

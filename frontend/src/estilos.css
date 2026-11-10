@@ -1,0 +1,96 @@
+:root {
+  --azul: #0b4f9c;
+  --azul-oscuro: #083a73;
+  --acento: #ff8a00;
+  --fondo: #f3f6fb;
+  --texto: #1d2733;
+  --gris: #5f6b7a;
+  --borde: #dbe3ee;
+  --verde: #1f8a4c;
+  --rojo: #c0392b;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--texto);
+  background: var(--fondo);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; }
+#root { display: flex; flex-direction: column; min-height: 100vh; }
+main { flex: 1; width: 100%; max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { margin-top: 0; }
+
+button {
+  font: inherit; cursor: pointer; border: 1px solid var(--borde); background: #fff;
+  color: var(--texto); padding: 8px 14px; border-radius: 8px;
+}
+button:disabled { opacity: 0.6; cursor: wait; }
+button.primario { background: var(--acento); border-color: var(--acento); color: #fff; font-weight: 600; }
+button.primario:hover:not(:disabled) { filter: brightness(0.95); }
+button.enlace { border: none; background: none; color: var(--azul); padding: 0; text-decoration: underline; }
+
+/* Barra superior */
+.barra {
+  background: var(--azul); color: #fff; display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; gap: 12px; flex-wrap: wrap;
+}
+.marca { background: none; border: none; color: #fff; font-size: 1.4rem; font-weight: 800; padding: 0; }
+.marca span { color: var(--acento); }
+.barra nav { display: flex; gap: 8px; flex-wrap: wrap; }
+.barra nav button { background: transparent; border-color: rgba(255, 255, 255, 0.35); color: #fff; }
+.barra nav button.activo { background: rgba(255, 255, 255, 0.18); }
+.barra nav button.primario { background: var(--acento); border-color: var(--acento); }
+
+/* Inicio y planes */
+.hero { text-align: center; margin: 12px 0 28px; }
+.hero h1 { font-size: clamp(1.6rem, 4vw, 2.4rem); color: var(--azul-oscuro); margin-bottom: 8px; }
+.hero p { color: var(--gris); margin: 0; }
+.rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
+.plan {
+  background: #fff; border: 1px solid var(--borde); border-top: 5px solid var(--azul); border-radius: 12px;
+  padding: 20px; display: flex; flex-direction: column; gap: 6px;
+}
+.plan-tv { border-top-color: #7b3fa0; }
+.plan-combo { border-top-color: var(--acento); }
+.plan h2 { margin: 4px 0; font-size: 1.2rem; }
+.plan .velocidad { font-size: 1.6rem; font-weight: 800; color: var(--azul); margin: 0; }
+.plan .descripcion { color: var(--gris); flex: 1; }
+.plan .precio { font-size: 1.3rem; font-weight: 700; margin: 8px 0; }
+.plan .precio small { font-size: 0.85rem; color: var(--gris); font-weight: 400; }
+.etiqueta {
+  align-self: flex-start; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;
+  background: var(--fondo); color: var(--gris); padding: 2px 8px; border-radius: 99px;
+}
+
+/* Tarjetas y formularios */
+.tarjeta { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 20px; margin-bottom: 18px; }
+.tarjeta h2 { margin-top: 0; font-size: 1.15rem; color: var(--azul-oscuro); }
+.formulario { max-width: 440px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: 0.92rem; }
+label small { font-weight: 400; color: var(--gris); }
+input, select {
+  font: inherit; padding: 9px 11px; border: 1px solid var(--borde); border-radius: 8px; font-weight: 400; width: 100%;
+}
+input:focus, select:focus { outline: 2px solid var(--azul); outline-offset: 1px; }
+
+.nota { color: var(--gris); font-size: 0.9rem; }
+.alerta { background: #fdecea; color: var(--rojo); padding: 10px 12px; border-radius: 8px; }
+.exito { background: #e6f5ec; color: var(--verde); padding: 10px 12px; border-radius: 8px; }
+.aviso { border-color: var(--acento); }
+.acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Mi cuenta */
+.dos-columnas { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.dos-columnas .tarjeta { display: flex; flex-direction: column; gap: 8px; }
+.dos-columnas .tarjeta p { margin: 0; }
+.plan-actual { font-size: 1.4rem; font-weight: 800; color: var(--azul); }
+.estado { padding: 2px 10px; border-radius: 99px; font-size: 0.85rem; font-weight: 600; text-transform: capitalize; }
+.estado-activa, .estado-aprobado { background: #e6f5ec; color: var(--verde); }
+.estado-pendiente { background: #fff4e0; color: #a35a00; }
+.estado-cancelada, .estado-rechazado { background: #fdecea; color: var(--rojo); }
+
+.tabla-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--borde); white-space: nowrap; }
+th { color: var(--gris); font-weight: 600; }
+
+footer { text-align: center; color: var(--gris); font-size: 0.82rem; padding: 18px 16px; }
