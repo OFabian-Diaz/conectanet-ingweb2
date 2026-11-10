@@ -1,0 +1,67 @@
+# Redis: contador compartido del límite de intentos de login entre las réplicas del backend.
+# Sin volumen: son datos de vida corta (ventanas de 15 min). Si el pod se reinicia, los
+# contadores empiezan de cero y, mientras tanto, el backend deja pasar los logins (fail-open).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: conectanet
+  labels:
+    app: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999 # usuario "redis" de la imagen oficial
+      containers:
+        - name: redis
+          image: redis:7.4-alpine
+          args: ["--requirepass", "$(REDIS_PASSWORD)", "--save", "", "--appendonly", "no"]
+          ports:
+            - name: redis
+              containerPort: 6379
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: conectanet-secretos, key: REDIS_PASSWORD }
+            - name: REDISCLI_AUTH # redis-cli la usa sin exponerla en la línea de comandos
+              valueFrom:
+                secretKeyRef: { name: conectanet-secretos, key: REDIS_PASSWORD }
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: redis }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: conectanet
+  labels:
+    app: redis
+spec:
+  type: ClusterIP # solo dentro del clúster
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis

@@ -1,17 +1,19 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
-const rateLimit = require('express-rate-limit');
 const { body } = require('express-validator');
 const { sequelize, Usuario, Plan, Suscripcion } = require('../models');
 const { validar, SIN_HTML } = require('../middleware/validar');
 const { firmarToken } = require('../middleware/auth');
 const { negocio } = require('../metricas');
+const { crearLimitador } = require('../limitador');
 
 const router = express.Router();
 const RONDAS_BCRYPT = 12;
 
 // Limita intentos para frenar fuerza bruta (OWASP A07: fallas de autenticación).
-const limiteAuth = rateLimit({
+// Con REDIS_URL el contador es compartido por todas las réplicas del backend.
+const limiteAuth = crearLimitador({
+  prefijo: 'auth',
   windowMs: 15 * 60 * 1000,
   limit: 20,
   standardHeaders: 'draft-7',

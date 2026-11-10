@@ -1,4 +1,4 @@
-# ConectaNet: frontend (Nginx) + backend (Node.js) + PostgreSQL + Prometheus + Grafana
+# ConectaNet: frontend (Nginx) + backend (Node.js) + PostgreSQL + Redis + Prometheus + Grafana
 #
 # Uso:
 #   node scripts/generar-env.js   # crea .env con secretos aleatorios
@@ -27,6 +27,22 @@ services:
       timeout: 3s
       retries: 10
 
+  # Contador compartido del límite de intentos de login. Sin persistencia: son datos
+  # de vida corta (ventanas de 15 min) y no vale la pena guardarlos en disco.
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["sh", "-c", 'exec redis-server --requirepass "$$REDIS_PASSWORD" --save "" --appendonly no']
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Define REDIS_PASSWORD en .env (node scripts/generar-env.js lo agrega)}
+      REDISCLI_AUTH: ${REDIS_PASSWORD} # para el healthcheck sin poner la clave en la línea de comandos
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   backend:
     build: ./backend
     image: conectanet-backend:latest
@@ -44,9 +60,12 @@ services:
       JWT_EXPIRES_IN: 2h
       CORS_ORIGIN: http://localhost:8080
       TRUST_PROXY: 1 # Nginx: el límite de login se aplica por IP real del cliente
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
     depends_on:
       db:
         condition: service_healthy # espera a que PostgreSQL acepte conexiones
+      redis:
+        condition: service_healthy
     networks: [frontend, backend, monitoreo]
     # Sin "ports": la API solo es accesible a través del frontend (Nginx).
     # /metrics solo lo alcanza Prometheus por la red "monitoreo".

@@ -21,15 +21,16 @@ conectanet/
 │   │   ├── server.js            Arranque: conexión BD, sync y siembra de planes
 │   │   ├── config.js            Variables de entorno
 │   │   ├── metricas.js          Métricas Prometheus (prom-client)
+│   │   ├── limitador.js         Límite de intentos de login (Redis compartido o memoria)
 │   │   ├── seed.js              Crea tablas y planes de ejemplo (también es el Job de Kubernetes)
 │   │   ├── models/index.js      Usuario, Plan, Suscripcion, Pago y relaciones
 │   │   ├── middleware/          auth.js (JWT), validar.js (express-validator)
 │   │   ├── routes/              auth, planes, usuarios, pagos
 │   │   └── docs/openapi.yaml    Especificación OpenAPI 3.0
-│   └── tests/api.test.js        24 pruebas (node --test + supertest)
+│   └── tests/                   25 pruebas (node --test + supertest)
 ├── frontend/                    React + Vite; Dockerfile multietapa con Nginx
 ├── postman/                     Colección Postman con scripts de prueba
-├── docker-compose.yml           db + backend + frontend + Prometheus + Grafana
+├── docker-compose.yml           db + Redis + backend + frontend + Prometheus + Grafana
 ├── monitoreo/                   Configuración de Prometheus (alertas) y Grafana (dashboard)
 ├── k8s/                         Manifiestos de Kubernetes (Minikube / kind)
 ├── infra/terraform/             Infraestructura en Azure
@@ -55,11 +56,11 @@ docker compose ps                  # db, backend y frontend deben aparecer "heal
 | Swagger | http://localhost:8080/api/docs | A través de Nginx |
 | Grafana | http://localhost:3000 (usuario `admin`, clave `GRAFANA_ADMIN_PASSWORD` del `.env`) | Solo en 127.0.0.1 |
 | Prometheus | http://localhost:9090 | Solo en 127.0.0.1 |
-| Backend y PostgreSQL | — | No: solo en redes internas |
+| Backend, PostgreSQL y Redis | — | No: solo en redes internas |
 
 Los datos de PostgreSQL, Prometheus y Grafana persisten en los volúmenes `pgdata`, `prometheusdata` y `grafanadata`. Para detener todo: `docker compose down`. Para borrar también los datos: `docker compose down -v`.
 
-Redes: `frontend` (Nginx ↔ backend), `backend` (backend ↔ PostgreSQL, marcada `internal`, sin salida a internet) y `monitoreo` (Prometheus ↔ backend ↔ Grafana).
+Redes: `frontend` (Nginx ↔ backend), `backend` (backend ↔ PostgreSQL y Redis, marcada `internal`, sin salida a internet) y `monitoreo` (Prometheus ↔ backend ↔ Grafana).
 
 ### Opción 2 — Kubernetes local (Minikube o kind)
 
@@ -83,7 +84,7 @@ kind load docker-image conectanet-backend:latest conectanet-frontend:latest --na
 kubectl create namespace conectanet
 kubectl create secret generic conectanet-secretos -n conectanet \
   --from-literal=DB_PASSWORD="<POSTGRES_PASSWORD del .env>" \
-  --from-literal=JWT_SECRET="<JWT_SECRET del .env>"
+  --from-literal=JWT_SECRET="<JWT_SECRET del .env>" \n  --from-literal=REDIS_PASSWORD="<REDIS_PASSWORD del .env>"
 
 # 4. Desplegar todo
 kubectl apply -k k8s/
@@ -103,6 +104,7 @@ minikube service frontend -n conectanet     # Minikube
 | Job | `migracion-job.yaml` | Crea tablas y planes una sola vez (evita carreras entre réplicas) |
 | Deployment + Service ClusterIP | `backend.yaml` | 2 réplicas, sondas liveness/readiness, límites y usuario no root |
 | Deployment + Service NodePort | `frontend.yaml` | 2 réplicas de Nginx expuestas en el puerto 30080 |
+| Deployment + Service ClusterIP | `redis.yaml` | Redis con el contador compartido del límite de login (sin volumen: datos de 15 min) |
 
 La sonda de *readiness* (`/api/salud/lista`) consulta la base de datos, así el backend no recibe tráfico hasta que el Job termine de crear las tablas. La de *liveness* (`/api/salud`) no toca la base, para que una caída de PostgreSQL no reinicie los pods de la API.
 
@@ -141,7 +143,7 @@ npm run dev               # http://localhost:5173 (reenvía /api al backend)
 
 ```bash
 cd backend
-npm test                  # 24 pruebas; usa SQLite en memoria, no toca tu base de datos
+npm test                  # 25 pruebas; usa SQLite en memoria. La de Redis se omite sin REDIS_URL_PRUEBAS
 ```
 
 Postman: importa `postman/ConectaNet.postman_collection.json` y ejecútala completa con el **Collection Runner** (con el backend encendido). El registro genera un correo único y el login guarda el token en `{{token}}` automáticamente.
@@ -179,7 +181,7 @@ Relaciones: Usuario 1—N Suscripcion N—1 Plan; Suscripcion 1—N Pago.
 | A01 CSRF | El JWT viaja en la cabecera `Authorization`, no en cookies, así que el navegador no lo envía solo desde otro sitio. CORS limitado al origen del frontend. | `auth.js`, `app.js` |
 | A01 Control de acceso | El id del usuario se toma siempre del token, nunca del cuerpo o la URL (evita IDOR). El monto del pago lo calcula el servidor. | `usuarios.js`, `pagos.js` |
 | A02 Fallas criptográficas | Contraseñas con bcrypt (12 rondas); JWT HS256 con secreto en variable de entorno, algoritmo fijado y expiración de 2 h. | `auth.js` |
-| A07 Fallas de autenticación | Límite de 20 intentos cada 15 min por IP en login/registro; mismo mensaje si el correo no existe o la clave es incorrecta; contraseña mínima de 8 caracteres con letras y números. Detrás de Nginx, `TRUST_PROXY` hace que el límite use la IP real del cliente sin aceptar `X-Forwarded-For` falsificados. | `routes/auth.js`, `config.js` |
+| A07 Fallas de autenticación | Límite de 20 intentos cada 15 min por IP en login/registro; mismo mensaje si el correo no existe o la clave es incorrecta; contraseña mínima de 8 caracteres con letras y números. Detrás de Nginx, `TRUST_PROXY` hace que el límite use la IP real del cliente sin aceptar `X-Forwarded-For` falsificados. El contador vive en Redis y es compartido por todas las réplicas del backend. | `routes/auth.js`, `limitador.js`, `config.js` |
 | A05 Configuración insegura | `helmet` (cabeceras de seguridad), sin `X-Powered-By`, errores sin trazas internas, `.env` fuera del control de versiones; contenedores sin root y base de datos en red interna. | `app.js`, `.gitignore`, `Dockerfile`, `docker-compose.yml` |
 | A06 Componentes vulnerables | `npm audit` en cada ejecución del CI. | `ci.yml` |
 | A09 Registro y monitoreo | Métricas de errores y logins fallidos con alertas en Prometheus. | `metricas.js`, `alertas.yml` |
@@ -244,7 +246,7 @@ El workflow `.github/workflows/ci.yml` se ejecuta en cada *push* (a `main`, `dev
 
 | Trabajo | Qué hace |
 |---|---|
-| **Backend - pruebas** | `npm ci`, `npm test` (24 pruebas) y `npm audit` de dependencias de producción (falla si hay vulnerabilidades altas, OWASP A06) |
+| **Backend - pruebas** | `npm ci`, `npm test` (25 pruebas, incluida la de dos réplicas que comparten el límite usando un Redis real como *service container*) y `npm audit` de dependencias de producción (falla si hay vulnerabilidades altas, OWASP A06) |
 | **Frontend - build** | `npm ci` y `npm run build` |
 | **Terraform y Kubernetes** | `terraform fmt -check`, `terraform validate` y `kubeconform` sobre `k8s/` contra los esquemas oficiales |
 | **Imágenes Docker** | Valida `docker-compose.yml` y construye las imágenes de backend y frontend (con caché). Solo se ejecuta si los tres trabajos anteriores pasan. |
@@ -304,7 +306,8 @@ Servicios PaaS usados:
 
 - **Azure Container Apps**: ejecuta las imágenes Docker del frontend y el backend, con réplicas de 1 a 3 según la carga y HTTPS automático.
 - **Azure Database for PostgreSQL — Flexible Server**: base de datos gestionada, con copias de seguridad diarias (7 días), parches automáticos y conexión TLS obligatoria.
-- **Azure Key Vault**: guarda `JWT_SECRET` y la contraseña de la base de datos.
+- **Azure Cache for Redis** (Basic C0, ~USD 16/mes, opcional con `redis_habilitado`): contador compartido del límite de intentos de login entre réplicas. Si se desactiva para ahorrar crédito, el backend queda en una sola réplica.
+- **Azure Key Vault**: guarda `JWT_SECRET`, la contraseña de la base de datos y la URL de Redis (que incluye su clave de acceso).
 
 Kubernetes (carpeta `k8s/`) se usa en local con Minikube o kind para practicar la orquestación. En producción, Container Apps, que funciona sobre Kubernetes administrado por Azure, nos ahorra operar el clúster.
 
@@ -329,7 +332,7 @@ Para eliminar todo y no consumir crédito: `terraform destroy`.
 | Entorno | Dónde viven `JWT_SECRET` y la contraseña de la BD | Qué se versiona |
 |---|---|---|
 | Desarrollo local | `backend/.env` | `backend/.env.example` (sin valores reales) |
-| Docker Compose | `.env` de la raíz, generado con `node scripts/generar-env.js` | `.env.example` |
+| Docker Compose | `.env` de la raíz, generado o completado con `node scripts/generar-env.js` (no cambia valores existentes) | `.env.example` |
 | Kubernetes | `Secret` creado con `kubectl create secret` | `k8s/secret.example.yaml` (plantilla) |
 | Azure | Key Vault; Terraform los genera con `random_password` y las Container Apps los leen con identidad administrada de solo lectura | Nada: ni en `.tf` ni en `.tfvars` |
 | GitHub Actions | `GITHUB_TOKEN` automático para publicar imágenes | — |
@@ -338,7 +341,8 @@ El estado de Terraform (`terraform.tfstate`) contiene los valores generados, por
 
 ## Limitaciones conocidas
 
-- **Límite de intentos con varias réplicas.** El contador del límite de login vive en la memoria de cada instancia del backend. Con N réplicas (2 en Kubernetes, hasta 3 en Azure) el límite efectivo es de unos 20 × N intentos, porque el balanceador reparte las peticiones. Medido en Kubernetes con 2 réplicas, el primer bloqueo llegó en el intento 34. La solución estándar es un almacenamiento compartido (Redis con `rate-limit-redis`).
+- **Redis caído.** Si Redis no responde, el backend deja pasar los intentos de login (*fail-open*) y lo registra una vez por minuto en los logs. Es una decisión consciente: para un proveedor de internet es peor que un cliente no pueda entrar a pagar que perder el límite unos minutos. Cuando Redis vuelve, el límite se reactiva solo. Como Redis no tiene volumen, un reinicio pone los contadores en cero.
+- **Escalar el backend en Docker Compose.** Nginx resuelve el nombre `backend` al arrancar. Después de `docker compose up -d --scale backend=N` hay que reiniciar el frontend (`docker compose restart frontend`) para que reparta entre todas las réplicas. En Kubernetes no pasa, porque el Service tiene una IP fija.
 - **Indicadores de negocio en Grafana.** Muestran los contadores desde el último arranque de la API. El histórico completo está en la base de datos.
 
 ## Alcance
