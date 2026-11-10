@@ -205,6 +205,13 @@ resource "azurerm_container_app" "backend" {
         name  = "DB_SSL"
         value = "true"
       }
+      # Proxies delante de la API: ingress del frontend -> Nginx -> ingress interno del backend.
+      # Verificar tras el primer despliegue que el límite de login distingue clientes
+      # (el aviso ERR_ERL_UNEXPECTED_X_FORWARDED_FOR no debe aparecer en los logs).
+      env {
+        name  = "TRUST_PROXY"
+        value = "3"
+      }
       env {
         name        = "DB_PASSWORD"
         secret_name = "db-password"

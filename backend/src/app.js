@@ -11,6 +11,7 @@ const app = express();
 
 // --- Seguridad (OWASP Top 10) ---
 app.disable('x-powered-by'); // no revelar la tecnología del servidor
+app.set('trust proxy', config.trustProxy); // IP real del cliente detrás de Nginx (ver config.js)
 app.use(helmet()); // cabeceras: CSP, X-Content-Type-Options, frameguard, HSTS...
 app.use(cors({ origin: config.corsOrigen, methods: ['GET', 'POST', 'PUT'], allowedHeaders: ['Content-Type', 'Authorization'] }));
 app.use(express.json({ limit: '10kb' })); // limita el tamaño del cuerpo
