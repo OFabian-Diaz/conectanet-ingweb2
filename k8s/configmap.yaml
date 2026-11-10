@@ -1,0 +1,17 @@
+# Configuración NO sensible del backend. Los secretos van en el Secret "conectanet-secretos".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: conectanet-config
+  namespace: conectanet
+data:
+  NODE_ENV: production
+  PORT: "4000"
+  DB_DIALECT: postgres
+  DB_HOST: postgres # nombre del Service de PostgreSQL
+  DB_PORT: "5432"
+  DB_NAME: conectanet
+  DB_USER: conectanet
+  DB_SYNC: "false" # las tablas las crea el Job "conectanet-migracion"
+  JWT_EXPIRES_IN: 2h
+  CORS_ORIGIN: http://localhost:8080
