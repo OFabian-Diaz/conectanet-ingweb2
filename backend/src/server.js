@@ -6,8 +6,10 @@ const { sembrarPlanes } = require('./seed');
 async function iniciar() {
   try {
     await sequelize.authenticate();
-    await sequelize.sync(); // crea las tablas si no existen
-    await sembrarPlanes();
+    if (config.db.sync) {
+      await sequelize.sync(); // crea las tablas si no existen
+      await sembrarPlanes();
+    }
     app.listen(config.puerto, () => {
       console.log(`ConectaNet API en http://localhost:${config.puerto}`);
       console.log(`Swagger:        http://localhost:${config.puerto}/api/docs`);

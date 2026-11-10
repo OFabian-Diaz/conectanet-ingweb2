@@ -1,17 +1,107 @@
-# Base de datos PostgreSQL para ConectaNet (opcional si ya tienes PostgreSQL instalado).
-# Uso: docker compose up -d   →   luego en backend/.env:
-#   DATABASE_URL=postgres://conectanet:conectanet_dev@localhost:5432/conectanet
+# ConectaNet: frontend (Nginx) + backend (Node.js) + PostgreSQL + Prometheus + Grafana
+#
+# Uso:
+#   node scripts/generar-env.js   # crea .env con secretos aleatorios
+#   docker compose up -d --build
+#   App: http://localhost:8080 · Grafana: http://localhost:3000 · Prometheus: http://localhost:9090
+#
+# Los secretos se leen del archivo .env (no versionado). Si falta alguno,
+# Compose se detiene con un error en lugar de arrancar con valores inseguros.
+
+name: conectanet
+
 services:
   db:
-    image: postgres:17
+    image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: conectanet
       POSTGRES_USER: conectanet
-      POSTGRES_PASSWORD: conectanet_dev # solo para desarrollo local
-    ports:
-      - "127.0.0.1:5432:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data # los datos sobreviven a docker compose down
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U conectanet -d conectanet"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    image: conectanet-backend:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DB_DIALECT: postgres
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: conectanet
+      DB_USER: conectanet
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
+      JWT_EXPIRES_IN: 2h
+      CORS_ORIGIN: http://localhost:8080
+    depends_on:
+      db:
+        condition: service_healthy # espera a que PostgreSQL acepte conexiones
+    networks: [frontend, backend, monitoreo]
+    # Sin "ports": la API solo es accesible a través del frontend (Nginx).
+    # /metrics solo lo alcanza Prometheus por la red "monitoreo".
+
+  frontend:
+    build: ./frontend
+    image: conectanet-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080" # único puerto publicado
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [frontend]
+
+  # ---------------- Monitoreo ----------------
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./monitoreo/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoreo/prometheus/alertas.yml:/etc/prometheus/alertas.yml:ro
+      - prometheusdata:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090" # solo desde este equipo
+    depends_on: [backend]
+    networks: [monitoreo]
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Define GRAFANA_ADMIN_PASSWORD en .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/conectanet.json
+    volumes:
+      - ./monitoreo/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoreo/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on: [prometheus]
+    networks: [monitoreo]
+
+networks:
+  frontend:
+  backend:
+    internal: true # la base de datos no tiene salida a internet
+  monitoreo:
 
 volumes:
   pgdata:
+  prometheusdata:
+  grafanadata:
