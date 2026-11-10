@@ -9,6 +9,9 @@ RUN npm run build
 # Etapa 2: servir los archivos estáticos con Nginx sin privilegios de root (puerto 8080).
 # La imagen final no lleva Node ni el código fuente, solo /dist.
 FROM nginxinc/nginx-unprivileged:1.27-alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Las plantillas de /etc/nginx/templates se procesan con envsubst al arrancar
+# y generan /etc/nginx/conf.d/default.conf con el valor de BACKEND_URL.
+ENV BACKEND_URL=http://backend:4000
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080

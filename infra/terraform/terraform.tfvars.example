@@ -1,0 +1,5 @@
+# Copiar a terraform.tfvars (no se versiona). Aquí NO van secretos:
+# la contraseña de la BD y el JWT_SECRET los genera Terraform y los guarda en Key Vault.
+ubicacion       = "eastus2"
+imagen_backend  = "ghcr.io/<usuario-github>/conectanet-backend:main"
+imagen_frontend = "ghcr.io/<usuario-github>/conectanet-frontend:main"
