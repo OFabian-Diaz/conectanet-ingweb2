@@ -5,9 +5,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 # 1) Solo los manifiestos: esta capa se reutiliza mientras no cambien las dependencias.
-#    --omit=optional excluye sqlite3 (en el contenedor se usa PostgreSQL).
+#    --omit=dev excluye supertest y sqlite3 (en el contenedor se usa PostgreSQL).
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --omit=optional && npm cache clean --force
+RUN npm ci --omit=dev && npm cache clean --force
 
 # 2) Código de la aplicación
 COPY src ./src
