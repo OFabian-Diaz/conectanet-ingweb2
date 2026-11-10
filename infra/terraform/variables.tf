@@ -27,6 +27,12 @@ variable "postgres_sku" {
   default     = "B_Standard_B1ms"
 }
 
+variable "redis_habilitado" {
+  description = "Crea Azure Cache for Redis (Basic C0, ~USD 16/mes) para compartir el límite de login entre réplicas. Con false el backend queda en 1 réplica."
+  type        = bool
+  default     = true
+}
+
 variable "etiquetas" {
   description = "Etiquetas comunes para todos los recursos"
   type        = map(string)

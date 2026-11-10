@@ -123,6 +123,31 @@ resource "azurerm_postgresql_flexible_server_firewall_rule" "azure" {
 }
 
 # ---------------------------------------------------------------------------
+# Redis gestionado: contador compartido del límite de intentos de login (opcional)
+# ---------------------------------------------------------------------------
+resource "azurerm_redis_cache" "limite" {
+  count                = var.redis_habilitado ? 1 : 0
+  name                 = "redis-${var.proyecto}-${local.sufijo}"
+  location             = azurerm_resource_group.rg.location
+  resource_group_name  = azurerm_resource_group.rg.name
+  capacity             = 0 # C0: 250 MB, el plan más pequeño
+  family               = "C"
+  sku_name             = "Basic"
+  non_ssl_port_enabled = false # solo TLS (puerto 6380)
+  minimum_tls_version  = "1.2"
+  tags                 = var.etiquetas
+}
+
+# La URL incluye la clave de acceso: se guarda en Key Vault, nunca en variables de la app
+resource "azurerm_key_vault_secret" "redis_url" {
+  count        = var.redis_habilitado ? 1 : 0
+  name         = "redis-url"
+  value        = "rediss://:${azurerm_redis_cache.limite[0].primary_access_key}@${azurerm_redis_cache.limite[0].hostname}:${azurerm_redis_cache.limite[0].ssl_port}"
+  key_vault_id = azurerm_key_vault.kv.id
+  depends_on   = [azurerm_key_vault_access_policy.terraform]
+}
+
+# ---------------------------------------------------------------------------
 # Cómputo: Azure Container Apps (contenedores sin administrar servidores)
 # ---------------------------------------------------------------------------
 resource "azurerm_log_analytics_workspace" "logs" {
@@ -167,9 +192,19 @@ resource "azurerm_container_app" "backend" {
     identity            = azurerm_user_assigned_identity.app.id
   }
 
+  dynamic "secret" {
+    for_each = var.redis_habilitado ? [1] : []
+    content {
+      name                = "redis-url"
+      key_vault_secret_id = azurerm_key_vault_secret.redis_url[0].versionless_id
+      identity            = azurerm_user_assigned_identity.app.id
+    }
+  }
+
   template {
     min_replicas = 1
-    max_replicas = 3
+    # Sin Redis el límite de intentos vive en memoria: solo es exacto con una réplica.
+    max_replicas = var.redis_habilitado ? 3 : 1
 
     container {
       name   = "backend"
@@ -211,6 +246,13 @@ resource "azurerm_container_app" "backend" {
       env {
         name  = "TRUST_PROXY"
         value = "3"
+      }
+      dynamic "env" {
+        for_each = var.redis_habilitado ? [1] : []
+        content {
+          name        = "REDIS_URL"
+          secret_name = "redis-url"
+        }
       }
       env {
         name        = "DB_PASSWORD"

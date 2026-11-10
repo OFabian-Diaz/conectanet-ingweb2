@@ -37,7 +37,9 @@ app.use(
 
 // --- Rutas ---
 // Liveness: el proceso responde (no toca la BD para no reiniciar pods si la BD cae).
-app.get('/api/salud', (req, res) => res.json({ estado: 'ok' }));
+app.get('/api/salud', (req, res) =>
+  res.json({ estado: 'ok', limiteIntentos: require('./limitador').estadoLimitador() })
+);
 // Readiness: la BD responde y las tablas existen; hasta entonces no se envía tráfico al pod.
 app.get('/api/salud/lista', async (req, res) => {
   try {
