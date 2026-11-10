@@ -159,6 +159,64 @@ git remote add origin https://github.com/<usuario>/conectanet.git
 git push -u origin main develop --tags
 ```
 
+## Despliegue en la nube: proveedor y modelo de servicio
+
+### Proveedor elegido: Microsoft Azure
+
+| Criterio | Azure | AWS | Google Cloud |
+|---|---|---|---|
+| Crédito para estudiantes | **Azure for Students: USD 100 con el correo institucional, sin tarjeta de crédito** | AWS Educate / Free Tier (requiere tarjeta para la capa gratuita) | USD 300 de prueba (requiere tarjeta) |
+| Contenedores sin administrar servidores | Container Apps (escala a cero, HTTPS incluido) | App Runner / ECS Fargate (más configuración de red e IAM) | Cloud Run (equivalente) |
+| PostgreSQL gestionado | Flexible Server desde ~USD 13/mes (B1ms) | RDS | Cloud SQL |
+| Gestión de secretos | Key Vault + identidad administrada | Secrets Manager + IAM Role | Secret Manager + Service Account |
+| Proveedor de Terraform | `azurerm` oficial de HashiCorp | `aws` | `google` |
+
+Los tres proveedores ofrecen servicios equivalentes para ConectaNet. Elegimos **Azure** por una razón práctica: es el único que da crédito a estudiantes sin pedir tarjeta de crédito, con lo que el equipo puede desplegar sin costo propio. Además, Container Apps exige la menor cantidad de infraestructura (no hay que definir VPC, balanceadores ni clústeres), algo adecuado para una empresa pequeña sin personal dedicado a infraestructura.
+
+### Modelo de servicio: PaaS
+
+| Modelo | Quién administra qué | ¿Lo usamos? |
+|---|---|---|
+| **IaaS** (máquinas virtuales) | El proveedor da el hardware virtual; nosotros instalamos y parchamos el sistema operativo, Node.js, PostgreSQL, copias de seguridad y escalado. | No: exige administrar servidores, algo que una empresa local pequeña no puede sostener. |
+| **PaaS** (plataforma) | El proveedor administra SO, parches, escalado, HTTPS y copias de seguridad; nosotros solo entregamos el contenedor y la configuración. | **Sí** |
+| **SaaS** (software terminado) | Se usa una aplicación ya hecha (p. ej. un sistema de facturación en línea). | No para el núcleo, que es software propio. Sí indirectamente: GitHub (repositorio y CI/CD) es SaaS. |
+
+Servicios PaaS usados:
+
+- **Azure Container Apps**: ejecuta las imágenes Docker del frontend y el backend, con réplicas de 1 a 3 según la carga y HTTPS automático.
+- **Azure Database for PostgreSQL — Flexible Server**: base de datos gestionada, con copias de seguridad diarias (7 días), parches automáticos y conexión TLS obligatoria.
+- **Azure Key Vault**: guarda `JWT_SECRET` y la contraseña de la base de datos.
+
+Kubernetes (carpeta `k8s/`) se usa en local con Minikube o kind para practicar la orquestación. En producción, Container Apps, que funciona sobre Kubernetes administrado por Azure, nos ahorra operar el clúster.
+
+### Desplegar con Terraform
+
+Requisitos: [Terraform](https://developer.hashicorp.com/terraform/install) 1.6 o superior, [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) y las imágenes publicadas en ghcr.io por el CI (paquetes públicos o con acceso configurado).
+
+```bash
+az login
+cd infra/terraform
+cp terraform.tfvars.example terraform.tfvars   # nombres de las imágenes; aquí no van secretos
+terraform init
+terraform plan
+terraform apply
+terraform output url_aplicacion
+```
+
+Para eliminar todo y no consumir crédito: `terraform destroy`.
+
+### Manejo de secretos
+
+| Entorno | Dónde viven `JWT_SECRET` y la contraseña de la BD | Qué se versiona |
+|---|---|---|
+| Desarrollo local | `backend/.env` | `backend/.env.example` (sin valores reales) |
+| Docker Compose | `.env` de la raíz, generado con `node scripts/generar-env.js` | `.env.example` |
+| Kubernetes | `Secret` creado con `kubectl create secret` | `k8s/secret.example.yaml` (plantilla) |
+| Azure | Key Vault; Terraform los genera con `random_password` y las Container Apps los leen con identidad administrada de solo lectura | Nada: ni en `.tf` ni en `.tfvars` |
+| GitHub Actions | `GITHUB_TOKEN` automático para publicar imágenes | — |
+
+El estado de Terraform (`terraform.tfstate`) contiene los valores generados, por eso está en `.gitignore`. En equipo se guarda en un backend remoto cifrado (Azure Storage), con el bloque `backend "azurerm"` comentado en `versions.tf`.
+
 ## Alcance
 
 El pago es simulado: no se integra pasarela real ni se solicitan datos bancarios. No se incluyen facturación electrónica ni atención al cliente en tiempo real.
