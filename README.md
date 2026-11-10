@@ -26,7 +26,7 @@ conectanet/
 │   │   ├── middleware/          auth.js (JWT), validar.js (express-validator)
 │   │   ├── routes/              auth, planes, usuarios, pagos
 │   │   └── docs/openapi.yaml    Especificación OpenAPI 3.0
-│   └── tests/api.test.js        21 pruebas de integración (node --test + supertest)
+│   └── tests/api.test.js        24 pruebas (node --test + supertest)
 ├── frontend/                    React + Vite; Dockerfile multietapa con Nginx
 ├── postman/                     Colección Postman con scripts de prueba
 ├── docker-compose.yml           db + backend + frontend + Prometheus + Grafana
@@ -141,7 +141,7 @@ npm run dev               # http://localhost:5173 (reenvía /api al backend)
 
 ```bash
 cd backend
-npm test                  # 21 pruebas; usa SQLite en memoria, no toca tu base de datos
+npm test                  # 24 pruebas; usa SQLite en memoria, no toca tu base de datos
 ```
 
 Postman: importa `postman/ConectaNet.postman_collection.json` y ejecútala completa con el **Collection Runner** (con el backend encendido). El registro genera un correo único y el login guarda el token en `{{token}}` automáticamente.
@@ -179,7 +179,7 @@ Relaciones: Usuario 1—N Suscripcion N—1 Plan; Suscripcion 1—N Pago.
 | A01 CSRF | El JWT viaja en la cabecera `Authorization`, no en cookies, así que el navegador no lo envía solo desde otro sitio. CORS limitado al origen del frontend. | `auth.js`, `app.js` |
 | A01 Control de acceso | El id del usuario se toma siempre del token, nunca del cuerpo o la URL (evita IDOR). El monto del pago lo calcula el servidor. | `usuarios.js`, `pagos.js` |
 | A02 Fallas criptográficas | Contraseñas con bcrypt (12 rondas); JWT HS256 con secreto en variable de entorno, algoritmo fijado y expiración de 2 h. | `auth.js` |
-| A07 Fallas de autenticación | Límite de 20 intentos cada 15 min en login/registro; mismo mensaje si el correo no existe o la clave es incorrecta; contraseña mínima de 8 caracteres con letras y números. | `routes/auth.js` |
+| A07 Fallas de autenticación | Límite de 20 intentos cada 15 min por IP en login/registro; mismo mensaje si el correo no existe o la clave es incorrecta; contraseña mínima de 8 caracteres con letras y números. Detrás de Nginx, `TRUST_PROXY` hace que el límite use la IP real del cliente sin aceptar `X-Forwarded-For` falsificados. | `routes/auth.js`, `config.js` |
 | A05 Configuración insegura | `helmet` (cabeceras de seguridad), sin `X-Powered-By`, errores sin trazas internas, `.env` fuera del control de versiones; contenedores sin root y base de datos en red interna. | `app.js`, `.gitignore`, `Dockerfile`, `docker-compose.yml` |
 | A06 Componentes vulnerables | `npm audit` en cada ejecución del CI. | `ci.yml` |
 | A09 Registro y monitoreo | Métricas de errores y logins fallidos con alertas en Prometheus. | `metricas.js`, `alertas.yml` |
@@ -244,7 +244,7 @@ El workflow `.github/workflows/ci.yml` se ejecuta en cada *push* (a `main`, `dev
 
 | Trabajo | Qué hace |
 |---|---|
-| **Backend - pruebas** | `npm ci`, `npm test` (21 pruebas) y `npm audit` de dependencias de producción (falla si hay vulnerabilidades altas, OWASP A06) |
+| **Backend - pruebas** | `npm ci`, `npm test` (24 pruebas) y `npm audit` de dependencias de producción (falla si hay vulnerabilidades altas, OWASP A06) |
 | **Frontend - build** | `npm ci` y `npm run build` |
 | **Terraform y Kubernetes** | `terraform fmt -check`, `terraform validate` y `kubeconform` sobre `k8s/` contra los esquemas oficiales |
 | **Imágenes Docker** | Valida `docker-compose.yml` y construye las imágenes de backend y frontend (con caché). Solo se ejecuta si los tres trabajos anteriores pasan. |
@@ -335,6 +335,11 @@ Para eliminar todo y no consumir crédito: `terraform destroy`.
 | GitHub Actions | `GITHUB_TOKEN` automático para publicar imágenes | — |
 
 El estado de Terraform (`terraform.tfstate`) contiene los valores generados, por eso está en `.gitignore`. En equipo se guarda en un backend remoto cifrado (Azure Storage), con el bloque `backend "azurerm"` comentado en `versions.tf`.
+
+## Limitaciones conocidas
+
+- **Límite de intentos con varias réplicas.** El contador del límite de login vive en la memoria de cada instancia del backend. Con N réplicas (2 en Kubernetes, hasta 3 en Azure) el límite efectivo es de unos 20 × N intentos, porque el balanceador reparte las peticiones. Medido en Kubernetes con 2 réplicas, el primer bloqueo llegó en el intento 34. La solución estándar es un almacenamiento compartido (Redis con `rate-limit-redis`).
+- **Indicadores de negocio en Grafana.** Muestran los contadores desde el último arranque de la API. El histórico completo está en la base de datos.
 
 ## Alcance
 

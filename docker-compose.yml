@@ -43,6 +43,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
       JWT_EXPIRES_IN: 2h
       CORS_ORIGIN: http://localhost:8080
+      TRUST_PROXY: 1 # Nginx: el límite de login se aplica por IP real del cliente
     depends_on:
       db:
         condition: service_healthy # espera a que PostgreSQL acepte conexiones
