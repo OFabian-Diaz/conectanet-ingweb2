@@ -11,7 +11,15 @@ module.exports = {
   puerto: Number(process.env.PORT) || 4000,
   db: {
     dialecto: process.env.DB_DIALECT || 'postgres',
+    // Opción 1: una URL completa. Opción 2 (Docker/Kubernetes): variables sueltas,
+    // así la contraseña puede venir de un Secret sin armar URLs a mano.
     url: process.env.DATABASE_URL,
+    host: process.env.DB_HOST,
+    puerto: Number(process.env.DB_PORT) || 5432,
+    nombre: process.env.DB_NAME || 'conectanet',
+    usuario: process.env.DB_USER || 'conectanet',
+    contrasena: process.env.DB_PASSWORD,
+    ssl: process.env.DB_SSL === 'true', // necesario en bases gestionadas en la nube
     storage: process.env.DB_STORAGE || './conectanet.sqlite',
   },
   jwt: {

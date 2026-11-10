@@ -1,17 +1,69 @@
-# Base de datos PostgreSQL para ConectaNet (opcional si ya tienes PostgreSQL instalado).
-# Uso: docker compose up -d   →   luego en backend/.env:
-#   DATABASE_URL=postgres://conectanet:conectanet_dev@localhost:5432/conectanet
+# ConectaNet: frontend (Nginx) + backend (Node.js) + PostgreSQL
+#
+# Uso:
+#   cp .env.example .env     # y reemplazar los secretos (ver README)
+#   docker compose up -d --build
+#   Abrir http://localhost:8080
+#
+# Los secretos se leen del archivo .env (no versionado). Si falta alguno,
+# Compose se detiene con un error en lugar de arrancar con valores inseguros.
+
+name: conectanet
+
 services:
   db:
-    image: postgres:17
+    image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: conectanet
       POSTGRES_USER: conectanet
-      POSTGRES_PASSWORD: conectanet_dev # solo para desarrollo local
-    ports:
-      - "127.0.0.1:5432:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data # los datos sobreviven a docker compose down
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U conectanet -d conectanet"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build: ./backend
+    image: conectanet-backend:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DB_DIALECT: postgres
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: conectanet
+      DB_USER: conectanet
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env}
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en .env}
+      JWT_EXPIRES_IN: 2h
+      CORS_ORIGIN: http://localhost:8080
+    depends_on:
+      db:
+        condition: service_healthy # espera a que PostgreSQL acepte conexiones
+    networks: [frontend, backend]
+    # Sin "ports": la API solo es accesible a través del frontend (Nginx).
+
+  frontend:
+    build: ./frontend
+    image: conectanet-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080" # único puerto publicado
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks: [frontend]
+
+networks:
+  frontend:
+  backend:
+    internal: true # la base de datos no tiene salida a internet
 
 volumes:
   pgdata:
