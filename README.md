@@ -105,6 +105,60 @@ Relaciones: Usuario 1—N Suscripcion N—1 Plan; Suscripcion 1—N Pago.
 | A07 Fallas de autenticación | Límite de 20 intentos cada 15 min en login/registro; mismo mensaje si el correo no existe o la clave es incorrecta; contraseña mínima de 8 caracteres con letras y números. | `routes/auth.js` |
 | A05 Configuración insegura | `helmet` (cabeceras de seguridad), sin `X-Powered-By`, errores sin trazas internas, `.env` fuera del control de versiones. | `app.js`, `.gitignore` |
 
+## Flujo de trabajo con Git (GitFlow)
+
+El repositorio sigue **GitFlow**, con dos ramas permanentes y ramas temporales por tarea:
+
+| Rama | Propósito | Se crea desde | Se integra en |
+|---|---|---|---|
+| `main` | Código en producción. Cada versión entregada lleva una etiqueta (`v1.0.0` = Corte 1, `v2.0.0` = Corte 2). | — | — |
+| `develop` | Integración: aquí se juntan las funcionalidades terminadas. | `main` | `release/*` |
+| `feature/<tema>` | Una funcionalidad o tema (p. ej. `feature/docker`, `feature/metricas`). | `develop` | `develop` |
+| `release/<versión>` | Preparar una entrega: ajustes finales, versión y documentación. | `develop` | `main` y `develop` |
+| `hotfix/<problema>` | Corrección urgente sobre producción. | `main` | `main` y `develop` |
+
+```
+main     ──●────────────────────────────────────────●── v2.0.0
+            \ v1.0.0                               /
+develop      ●──────●──────●──────●──────●───────●
+              \    /  \   /  \   /  \   /  \    /
+feature/*      ●──●    ●─●    ●─●    ●─●    ●──●
+             gitflow  docker  ci/cd  k8s   terraform, metricas...
+```
+
+Comandos del flujo (sin la extensión git-flow, solo Git):
+
+```bash
+# 1. Empezar una funcionalidad
+git switch develop
+git switch -c feature/mi-tema
+
+# 2. Trabajar y hacer commits pequeños (Conventional Commits: feat:, fix:, docs:, ci:, chore:)
+git add -A
+git commit -m "feat: descripción del cambio"
+
+# 3. Terminarla: integrar en develop conservando la historia de la rama
+git switch develop
+git merge --no-ff feature/mi-tema
+git branch -d feature/mi-tema
+
+# 4. Publicar una versión
+git switch -c release/2.0.0 develop
+#   ...ajustes finales...
+git switch main && git merge --no-ff release/2.0.0 && git tag -a v2.0.0 -m "Entrega Corte 2"
+git switch develop && git merge --no-ff release/2.0.0
+git branch -d release/2.0.0
+```
+
+En GitHub se recomienda proteger `main` y `develop`: los cambios entran solo por *pull request*, con la integración continua en verde (ver sección CI/CD) y la revisión del compañero.
+
+Para subir el repositorio a GitHub:
+
+```bash
+git remote add origin https://github.com/<usuario>/conectanet.git
+git push -u origin main develop --tags
+```
+
 ## Alcance
 
 El pago es simulado: no se integra pasarela real ni se solicitan datos bancarios. No se incluyen facturación electrónica ni atención al cliente en tiempo real.
