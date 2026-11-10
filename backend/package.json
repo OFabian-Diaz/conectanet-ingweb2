@@ -1,6 +1,6 @@
 {
   "name": "conectanet-backend",
-  "version": "2.0.0",
+  "version": "2.0.2",
   "description": "API REST de ConectaNet: planes de internet y TV, usuarios, suscripciones y pagos",
   "main": "src/server.js",
   "private": true,
